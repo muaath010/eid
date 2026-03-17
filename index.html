@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام توزيع مناديب العيد - واتساب</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #27ae60;
+            --whatsapp: #25D366;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --warning: #f39c12;
+            --eid-color: #8e44ad;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; color: var(--primary); }
+        .container { max-width: 1300px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: var(--primary); border-bottom: 2px solid var(--eid-color); padding-bottom: 10px; }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; background: var(--light); padding: 15px; border-radius: 10px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        
+        button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+        button:disabled { cursor: not-allowed; opacity: 0.7; }
+        .btn-add { background: var(--accent); color: white; }
+        .btn-random { background: var(--eid-color); color: white; }
+        .btn-pdf { background: #e67e22; color: white; grid-column: span 2; }
+        .btn-whatsapp { background: var(--whatsapp); color: white; padding: 4px 8px; font-size: 11px; }
+        
+        .shifts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
+        .shift-card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+        .shift-header { font-weight: bold; background: var(--primary); color: white; padding: 8px; border-radius: 5px; margin-bottom: 10px; text-align: center; }
+        .day1-header { background: #2980b9; }
+        .day2-header { background: #8e44ad; }
+        .day3-header { background: #16a085; }
+        
+        .delegate-item { background: #f9f9f9; padding: 10px; margin: 8px 0; border-right: 4px solid var(--accent); border-radius: 4px; border-left: 1px solid #eee; }
+        .item-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .delegate-name { font-weight: bold; font-size: 14px; }
+        
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-start; }
+        .checkbox-group label { background: #eee; padding: 3px 5px; border-radius: 4px; cursor: pointer; font-size: 9px; text-align: center; border: 1px solid #ddd; }
+        
+        textarea, input[type="text"] { padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎉 نظام مناديب العيد + إرسال واتساب</h1>
+
+    <div class="controls">
+        <div class="input-group">
+            <input type="text" id="delegateName" placeholder="اسم المندوب">
+            <input type="text" id="delegatePhone" placeholder="رقم الواتساب (مثال: 9665xxxxx)">
+            <button class="btn-add" onclick="addSingle()">➕ إضافة مندوب</button>
+        </div>
+        <div class="input-group">
+            <textarea id="bulkInput" placeholder="لصق (اسم المندوب، الرقم) كل واحد في سطر..."></textarea>
+            <button class="btn-add" onclick="addBulk()">📋 إضافة القائمة</button>
+        </div>
+        <button class="btn-random" onclick="randomizeShifts()">🎲 توزيع عشوائي عادل</button>
+        <button id="pdfBtn" class="btn-pdf" onclick="downloadPDF()">📄 تصدير الجدول PDF</button>
+    </div>
+
+    <div class="shifts-grid" id="shiftsContainer"></div>
+</div>
+
+<script>
+    // إعداد فترات العيد المقسمة الجديدة (18 شفت)
+    const shiftsConfig = [
+        // اليوم الأول (من 4 عصراً إلى 1 ليلاً) - 4 شفتات
+        { id: 1, label: "ي1-ش1", title: "اليوم الأول - شفت 1", time: "4:00 م → 6:15 م", colorClass: "day1-header" },
+        { id: 2, label: "ي1-ش2", title: "اليوم الأول - شفت 2", time: "6:15 م → 8:30 م", colorClass: "day1-header" },
+        { id: 3, label: "ي1-ش3", title: "اليوم الأول - شفت 3", time: "8:30 م → 10:45 م", colorClass: "day1-header" },
+        { id: 4, label: "ي1-ش4", title: "اليوم الأول - شفت 4", time: "10:45 م → 1:00 ص", colorClass: "day1-header" },
+
+        // اليوم الثاني (من 9 صباحاً إلى 1 ليلاً) - 8 شفتات (ساعتين لكل شفت)
+        { id: 5, label: "ي2-ش1", title: "اليوم الثاني - شفت 1", time: "9:00 ص → 11:00 ص", colorClass: "day2-header" },
+        { id: 6, label: "ي2-ش2", title: "اليوم الثاني - شفت 2", time: "11:00 ص → 1:00 م", colorClass: "day2-header" },
+        { id: 7, label: "ي2-ش3", title: "اليوم الثاني - شفت 3", time: "1:00 م → 3:00 م", colorClass: "day2-header" },
+        { id: 8, label: "ي2-ش4", title: "اليوم الثاني - شفت 4", time: "3:00 م → 5:00 م", colorClass: "day2-header" },
+        { id: 9, label: "ي2-ش5", title: "اليوم الثاني - شفت 5", time: "5:00 م → 7:00 م", colorClass: "day2-header" },
+        { id: 10, label: "ي2-ش6", title: "اليوم الثاني - شفت 6", time: "7:00 م → 9:00 م", colorClass: "day2-header" },
+        { id: 11, label: "ي2-ش7", title: "اليوم الثاني - شفت 7", time: "9:00 م → 11:00 م", colorClass: "day2-header" },
+        { id: 12, label: "ي2-ش8", title: "اليوم الثاني - شفت 8", time: "11:00 م → 1:00 ص", colorClass: "day2-header" },
+
+        // اليوم الثالث (من 8 صباحاً إلى 1 ليلاً) - 6 شفتات (من ساعتين ونصف لـ 3 ساعات)
+        { id: 13, label: "ي3-ش1", title: "اليوم الثالث - شفت 1", time: "8:00 ص → 11:00 ص", colorClass: "day3-header" },
+        { id: 14, label: "ي3-ش2", title: "اليوم الثالث - شفت 2", time: "11:00 ص → 2:00 م", colorClass: "day3-header" },
+        { id: 15, label: "ي3-ش3", title: "اليوم الثالث - شفت 3", time: "2:00 م → 5:00 م", colorClass: "day3-header" },
+        { id: 16, label: "ي3-ش4", title: "اليوم الثالث - شفت 4", time: "5:00 م → 8:00 م", colorClass: "day3-header" },
+        { id: 17, label: "ي3-ش5", title: "اليوم الثالث - شفت 5", time: "8:00 م → 10:30 م", colorClass: "day3-header" },
+        { id: 18, label: "ي3-ش6", title: "اليوم الثالث - شفت 6", time: "10:30 م → 1:00 ص", colorClass: "day3-header" }
+    ];
+
+    let allDelegates = JSON.parse(localStorage.getItem('delegates_eid_v2')) || [];
+
+    function render() {
+        const container = document.getElementById('shiftsContainer');
+        container.innerHTML = '';
+
+        shiftsConfig.forEach(shift => {
+            const delegatesInShift = allDelegates.filter(d => d.shiftIds.includes(shift.id));
+            
+            const card = document.createElement('div');
+            card.className = 'shift-card';
+            card.innerHTML = `
+                <div class="shift-header ${shift.colorClass}">${shift.title}<br><small dir="ltr">${shift.time}</small></div>
+                <div class="delegate-list">
+                    ${delegatesInShift.map(d => `
+                        <div class="delegate-item">
+                            <div class="item-main">
+                                <span class="delegate-name">${d.name}</span>
+                                <div style="display:flex; gap:5px;">
+                                    <button class="btn-whatsapp" onclick="sendWhatsApp('${d.id}')">💬 واتساب</button>
+                                    <button style="background:none; color:red; cursor:pointer; font-size:16px;" onclick="deleteDelegate('${d.id}')">×</button>
+                                </div>
+                            </div>
+                            <div class="checkbox-group">
+                                ${shiftsConfig.map(s => `
+                                    <label style="background: ${d.shiftIds.includes(s.id) ? '#27ae60' : '#eee'}; color: ${d.shiftIds.includes(s.id) ? 'white' : 'black'}; border-color: ${d.shiftIds.includes(s.id) ? '#27ae60' : '#ddd'};">
+                                        <input type="checkbox" style="display:none" onchange="toggleShift('${d.id}', ${s.id})" ${d.shiftIds.includes(s.id) ? 'checked' : ''}>
+                                        ${s.label}
+                                    </label>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        const unassignedDelegates = allDelegates.filter(d => d.shiftIds.length === 0);
+        const unassignedCard = document.createElement('div');
+        unassignedCard.className = 'shift-card';
+        unassignedCard.style.border = '2px dashed var(--warning)';
+        unassignedCard.innerHTML = `
+            <div class="shift-header" style="background: var(--warning);">مناديب بدون فترة (انتظار)</div>
+            <div class="delegate-list">
+                ${unassignedDelegates.map(d => `
+                    <div class="delegate-item" style="border-right-color: var(--warning);">
+                        <div class="item-main">
+                            <span class="delegate-name">${d.name}</span>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-whatsapp" onclick="sendWhatsApp('${d.id}')">💬 واتساب</button>
+                                <button style="background:none; color:red; cursor:pointer;" onclick="deleteDelegate('${d.id}')">×</button>
+                            </div>
+                        </div>
+                        <div class="checkbox-group">
+                            ${shiftsConfig.map(s => `
+                                <label style="background: #eee; color: black">
+                                    <input type="checkbox" style="display:none" onchange="toggleShift('${d.id}', ${s.id})">
+                                    ${s.label}
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+                ${unassignedDelegates.length === 0 ? '<p style="text-align:center; color:#7f8c8d; font-size:13px; margin-top:10px;">لا يوجد مناديب في قائمة الانتظار</p>' : ''}
+            </div>
+        `;
+        container.appendChild(unassignedCard);
+
+        localStorage.setItem('delegates_eid_v2', JSON.stringify(allDelegates));
+    }
+
+    function addSingle() {
+        const name = document.getElementById('delegateName').value;
+        const phone = document.getElementById('delegatePhone').value;
+        if (!name) return;
+        allDelegates.push({ id: Date.now().toString(), name: name, phone: phone, shiftIds: [] });
+        document.getElementById('delegateName').value = '';
+        document.getElementById('delegatePhone').value = '';
+        render();
+    }
+
+    function addBulk() {
+        const raw = document.getElementById('bulkInput').value;
+        const lines = raw.split('\n').filter(l => l.trim() !== "");
+        lines.forEach(line => {
+            const parts = line.split(/[،,-]/);
+            allDelegates.push({ 
+                id: Math.random().toString(36).substr(2, 9), 
+                name: parts[0].trim(), 
+                phone: parts[1] ? parts[1].trim() : "", 
+                shiftIds: [] 
+            });
+        });
+        document.getElementById('bulkInput').value = '';
+        render();
+    }
+
+    function sendWhatsApp(delegateId) {
+        const delegate = allDelegates.find(d => d.id === delegateId);
+        
+        if (!delegate.phone) {
+            alert("يرجى إضافة رقم جوال لهذا المندوب أولاً");
+            return;
+        }
+
+        let message = "";
+        
+        if (delegate.shiftIds && delegate.shiftIds.length > 0) {
+            const sortedShifts = [...delegate.shiftIds].sort((a, b) => a - b);
+            let shiftsText = sortedShifts.map(id => {
+                const shift = shiftsConfig.find(s => s.id === id);
+                return `▪️ ${shift.title}: من ${shift.time}`;
+            }).join('\n');
+            
+            message = `أهلاً ${delegate.name} 🎉\nكل عام وأنتم بخير.. لديك مناوبات في أيام العيد للفترات التالية:\n\n${shiftsText}\n\nبالتوفيق!`;
+        } else {
+            message = `أهلاً ${delegate.name} 🎉\nكل عام وأنتم بخير.. أنت حالياً في قائمة الانتظار (بدون فترة محددة). سنقوم بالتواصل معك قريباً لتحديد موعد مناوبتك!`;
+        }
+        
+        const url = `https://wa.me/${delegate.phone}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    }
+
+    function toggleShift(delegateId, shiftId) {
+        const delegate = allDelegates.find(d => d.id === delegateId);
+        if (delegate) {
+            if (delegate.shiftIds.includes(shiftId)) {
+                delegate.shiftIds = delegate.shiftIds.filter(id => id !== shiftId);
+            } else {
+                delegate.shiftIds.push(shiftId);
+            }
+            render();
+        }
+    }
+
+    function deleteDelegate(id) {
+        if(confirm("حذف المندوب؟")) {
+            allDelegates = allDelegates.filter(d => d.id !== id);
+            render();
+        }
+    }
+
+    function randomizeShifts() {
+        allDelegates.forEach((d, index) => { d.shiftIds = [(index % 18) + 1]; });
+        render();
+    }
+
+    function downloadPDF() {
+        const pdfBtn = document.getElementById('pdfBtn');
+        const originalText = pdfBtn.innerHTML;
+        pdfBtn.innerHTML = '⏳ جاري تجهيز الملف... الرجاء الانتظار';
+        pdfBtn.disabled = true;
+
+        let printHTML = `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; padding: 20px; background: #fff;">
+            <h1 style="text-align: center; color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 30px;">جدول مناوبات مناديب العيد</h1>
+        `;
+
+        for (let i = 0; i < shiftsConfig.length; i += 2) {
+            
+            if (i > 0) {
+                printHTML += `<div class="html2pdf__page-break" style="page-break-before: always; height: 0; display: block; width: 100%;"></div>`;
+            }
+            
+            printHTML += `<div style="display: block; width: 100%; clear: both;">`;
+            
+            for(let j = 0; j < 2; j++) {
+                if (i + j < shiftsConfig.length) {
+                    const shift = shiftsConfig[i + j];
+                    const delegatesInShift = allDelegates.filter(d => d.shiftIds.includes(shift.id));
+                    
+                    let delegatesHTML = delegatesInShift.map(d => `
+                        <div style="background: #f9f9f9; padding: 12px; margin: 8px 0; border-right: 4px solid #8e44ad; border-radius: 4px; border-left: 1px solid #eee; font-weight: bold; color: #333; font-size: 16px;">
+                            ${d.name}
+                        </div>
+                    `).join('');
+
+                    if(delegatesInShift.length === 0) {
+                        delegatesHTML = `<div style="text-align:center; color:#999; padding: 20px; font-size: 14px;">لا يوجد مناديب في هذه الفترة</div>`;
+                    }
+
+                    // ألوان رؤوس البطاقات في الـ PDF
+                    let bgColor = "#2c3e50"; // افتراضي
+                    if(shift.id >= 1 && shift.id <= 4) bgColor = "#2980b9";
+                    if(shift.id >= 5 && shift.id <= 12) bgColor = "#8e44ad";
+                    if(shift.id >= 13 && shift.id <= 18) bgColor = "#16a085";
+
+                    printHTML += `
+                    <div style="display: inline-block; width: 48%; vertical-align: top; border: 1px solid #ddd; border-radius: 10px; padding: 15px; box-sizing: border-box; margin: 0 0.5%;">
+                        <div style="font-weight: bold; background: ${bgColor}; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-size: 18px;">
+                            ${shift.title}<br><span style="font-size: 14px;" dir="ltr">${shift.time}</span>
+                        </div>
+                        <div>
+                            ${delegatesHTML}
+                        </div>
+                    </div>
+                    `;
+                }
+            }
+            
+            printHTML += `</div>`; 
+        }
+
+        printHTML += `</div>`;
+
+        const opt = { 
+            margin: 10, 
+            filename: 'جدول_العيد.pdf', 
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { scale: 2, useCORS: true }, 
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+            pagebreak: { mode: ['css', 'legacy'] }
+        };
+
+        html2pdf().set(opt).from(printHTML).save().then(() => {
+            pdfBtn.innerHTML = originalText;
+            pdfBtn.disabled = false;
+        }).catch(err => {
+            console.error("PDF Error: ", err);
+            pdfBtn.innerHTML = originalText;
+            pdfBtn.disabled = false;
+            alert("حدث خطأ أثناء تصدير الملف.");
+        });
+    }
+
+    render();
+</script>
+</body>
+</html>
