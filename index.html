@@ -61,7 +61,7 @@
             <textarea id="bulkInput" placeholder="لصق (اسم المندوب، الرقم) كل واحد في سطر..."></textarea>
             <button class="btn-add" onclick="addBulk()">📋 إضافة القائمة</button>
         </div>
-        <button class="btn-random" onclick="smartRandomizeShifts()">🤖 توزيع ذكي (3 لـ 4 شفتات باليوم)</button>
+        <button class="btn-random" onclick="smartRandomizeShifts()">🤖 توزيع ذكي (يمنع الشفتات المتتالية)</button>
         <button id="pdfBtn" class="btn-pdf" onclick="downloadPDF()">📄 تصدير الجدول PDF</button>
     </div>
 
@@ -238,7 +238,7 @@
         }
     }
 
-    // ✨ التوزيع الذكي الجديد (أقصى حد 3-4 شفتات في اليوم) ✨
+    // ✨ التوزيع الذكي الجديد (يمنع الشفتات المتتالية) ✨
     function smartRandomizeShifts() {
         if (allDelegates.length === 0) {
             alert("الرجاء إضافة المناديب أولاً!");
@@ -246,41 +246,58 @@
         }
 
         // 1. تصفير المناوبات القديمة
-        allDelegates.forEach(d => d.shiftIds = []);
+        allDelegates.forEach(d => {
+            d.shiftIds = [];
+            d.shiftsToday = 0;
+        });
 
-        // 2. تجميع الشفتات حسب اليوم
+        // 2. تقسيم الشفتات حسب اليوم
         const daysGroups = [
             shiftsConfig.filter(s => s.id >= 1 && s.id <= 4),   // اليوم الأول
             shiftsConfig.filter(s => s.id >= 5 && s.id <= 12),  // اليوم الثاني
             shiftsConfig.filter(s => s.id >= 13 && s.id <= 18)  // اليوم الثالث
         ];
 
-        // 3. التوزيع العادل بحيث لا يتجاوز أحد المناديب باقي زملائه في نفس اليوم
+        // 3. التوزيع العادل ومنع التتالي
         daysGroups.forEach(dayShifts => {
             
-            // نصفر عداد "شفتات اليوم" لكل مندوب قبل أن نبدأ توزيع هذا اليوم
+            // نصفر عداد "شفتات اليوم" لكل مندوب مع بداية كل يوم جديد
             allDelegates.forEach(d => d.shiftsToday = 0);
 
-            dayShifts.forEach(shift => {
+            dayShifts.forEach((shift, index) => {
                 // الشفت المسائي يحتاج 5، الصباحي يحتاج 3
                 let neededDelegates = shift.isEvening ? 5 : 3;
                 let assignedCount = 0;
+                
+                // معرفة رقم الشفت السابق (إن وجد في نفس اليوم) لمنع التتابع
+                let prevShiftId = index > 0 ? dayShifts[index - 1].id : null;
 
                 while(assignedCount < neededDelegates) {
-                    // نأخذ المناديب المتاحين الذين لم يُضافوا في هذا الشفت تحديداً
+                    // نأخذ المناديب الذين لم يتم تعيينهم في هذا الشفت بعد
                     let availableDelegates = allDelegates.filter(d => !d.shiftIds.includes(shift.id));
                     
-                    if (availableDelegates.length === 0) break; // أمان في حال لم نجد أحد
+                    if (availableDelegates.length === 0) break; // أمان
 
-                    // ترتيب المناديب: نعطي الأولوية لمن لم يأخذ شفتات كثيرة في *نفس هذا اليوم*
+                    // ترتيب المناديب حسب الأولوية الصارمة
                     availableDelegates.sort((a, b) => {
-                        if (a.shiftsToday !== b.shiftsToday) {
-                            return a.shiftsToday - b.shiftsToday; // ترتيب تصاعدي حسب عداد اليوم
+                        // أولوية 1: تجنب الشفت المتتالي (الشخص الذي عمل الشفت السابق يُعطى قيمة 1 فيرجع لآخر الطابور)
+                        let aWorkedPrev = (prevShiftId && a.shiftIds.includes(prevShiftId)) ? 1 : 0;
+                        let bWorkedPrev = (prevShiftId && b.shiftIds.includes(prevShiftId)) ? 1 : 0;
+                        
+                        if (aWorkedPrev !== bWorkedPrev) {
+                            return aWorkedPrev - bWorkedPrev; 
                         }
-                        return 0.5 - Math.random(); // إذا تساووا، نختار عشوائياً للعدل
+
+                        // أولوية 2: المساواة في عدد الشفتات في نفس اليوم
+                        if (a.shiftsToday !== b.shiftsToday) {
+                            return a.shiftsToday - b.shiftsToday;
+                        }
+
+                        // أولوية 3: عشوائية لضمان تدوير الأسماء
+                        return 0.5 - Math.random();
                     });
 
-                    // اختيار المندوب الأول في القائمة المفلترة والمصنفة
+                    // اختيار أول مندوب متاح بعد الترتيب والمقايسة
                     let selectedDelegate = availableDelegates[0];
                     selectedDelegate.shiftIds.push(shift.id);
                     selectedDelegate.shiftsToday++;
@@ -303,7 +320,6 @@
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background: #fff;">
         `;
 
-        // ترتيب كل شفتين في صفحة مستقلة
         for (let i = 0; i < shiftsConfig.length; i += 2) {
             
             printHTML += `
