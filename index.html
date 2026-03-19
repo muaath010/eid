@@ -49,7 +49,7 @@
 <body>
 
 <div class="container">
-    <h1> نظام مناديب العيد</h1>
+    <h1>🎉 نظام مناديب العيد + إرسال واتساب</h1>
 
     <div class="controls">
         <div class="input-group">
@@ -61,7 +61,7 @@
             <textarea id="bulkInput" placeholder="لصق (اسم المندوب، الرقم) كل واحد في سطر..."></textarea>
             <button class="btn-add" onclick="addBulk()">📋 إضافة القائمة</button>
         </div>
-        <button class="btn-random" onclick="randomizeShifts()">🎲 توزيع عشوائي عادل</button>
+        <button class="btn-random" onclick="smartRandomizeShifts()">🤖 توزيع ذكي (3 لـ 4 شفتات باليوم)</button>
         <button id="pdfBtn" class="btn-pdf" onclick="downloadPDF()">📄 تصدير الجدول PDF</button>
     </div>
 
@@ -69,31 +69,30 @@
 </div>
 
 <script>
-    // إعداد فترات العيد المقسمة الجديدة (18 شفت)
     const shiftsConfig = [
-        // اليوم الأول (من 4 عصراً إلى 1 ليلاً) - 4 شفتات
-        { id: 1, label: "ي1-ش1", title: "اليوم الأول - شفت 1", time: "4:00 م → 6:15 م", colorClass: "day1-header" },
-        { id: 2, label: "ي1-ش2", title: "اليوم الأول - شفت 2", time: "6:15 م → 8:30 م", colorClass: "day1-header" },
-        { id: 3, label: "ي1-ش3", title: "اليوم الأول - شفت 3", time: "8:30 م → 10:45 م", colorClass: "day1-header" },
-        { id: 4, label: "ي1-ش4", title: "اليوم الأول - شفت 4", time: "10:45 م → 1:00 ص", colorClass: "day1-header" },
+        // اليوم الأول
+        { id: 1, label: "ي1-ش1", title: "اليوم الأول - شفت 1", time: "4:00 م → 6:15 م", colorClass: "day1-header", isEvening: true },
+        { id: 2, label: "ي1-ش2", title: "اليوم الأول - شفت 2", time: "6:15 م → 8:30 م", colorClass: "day1-header", isEvening: true },
+        { id: 3, label: "ي1-ش3", title: "اليوم الأول - شفت 3", time: "8:30 م → 10:45 م", colorClass: "day1-header", isEvening: true },
+        { id: 4, label: "ي1-ش4", title: "اليوم الأول - شفت 4", time: "10:45 م → 1:00 ص", colorClass: "day1-header", isEvening: true },
 
-        // اليوم الثاني (من 9 صباحاً إلى 1 ليلاً) - 8 شفتات (ساعتين لكل شفت)
-        { id: 5, label: "ي2-ش1", title: "اليوم الثاني - شفت 1", time: "9:00 ص → 11:00 ص", colorClass: "day2-header" },
-        { id: 6, label: "ي2-ش2", title: "اليوم الثاني - شفت 2", time: "11:00 ص → 1:00 م", colorClass: "day2-header" },
-        { id: 7, label: "ي2-ش3", title: "اليوم الثاني - شفت 3", time: "1:00 م → 3:00 م", colorClass: "day2-header" },
-        { id: 8, label: "ي2-ش4", title: "اليوم الثاني - شفت 4", time: "3:00 م → 5:00 م", colorClass: "day2-header" },
-        { id: 9, label: "ي2-ش5", title: "اليوم الثاني - شفت 5", time: "5:00 م → 7:00 م", colorClass: "day2-header" },
-        { id: 10, label: "ي2-ش6", title: "اليوم الثاني - شفت 6", time: "7:00 م → 9:00 م", colorClass: "day2-header" },
-        { id: 11, label: "ي2-ش7", title: "اليوم الثاني - شفت 7", time: "9:00 م → 11:00 م", colorClass: "day2-header" },
-        { id: 12, label: "ي2-ش8", title: "اليوم الثاني - شفت 8", time: "11:00 م → 1:00 ص", colorClass: "day2-header" },
+        // اليوم الثاني
+        { id: 5, label: "ي2-ش1", title: "اليوم الثاني - شفت 1", time: "9:00 ص → 11:00 ص", colorClass: "day2-header", isEvening: false },
+        { id: 6, label: "ي2-ش2", title: "اليوم الثاني - شفت 2", time: "11:00 ص → 1:00 م", colorClass: "day2-header", isEvening: false },
+        { id: 7, label: "ي2-ش3", title: "اليوم الثاني - شفت 3", time: "1:00 م → 3:00 م", colorClass: "day2-header", isEvening: false },
+        { id: 8, label: "ي2-ش4", title: "اليوم الثاني - شفت 4", time: "3:00 م → 5:00 م", colorClass: "day2-header", isEvening: false },
+        { id: 9, label: "ي2-ش5", title: "اليوم الثاني - شفت 5", time: "5:00 م → 7:00 م", colorClass: "day2-header", isEvening: true },
+        { id: 10, label: "ي2-ش6", title: "اليوم الثاني - شفت 6", time: "7:00 م → 9:00 م", colorClass: "day2-header", isEvening: true },
+        { id: 11, label: "ي2-ش7", title: "اليوم الثاني - شفت 7", time: "9:00 م → 11:00 م", colorClass: "day2-header", isEvening: true },
+        { id: 12, label: "ي2-ش8", title: "اليوم الثاني - شفت 8", time: "11:00 م → 1:00 ص", colorClass: "day2-header", isEvening: true },
 
-        // اليوم الثالث (من 8 صباحاً إلى 1 ليلاً) - 6 شفتات (من ساعتين ونصف لـ 3 ساعات)
-        { id: 13, label: "ي3-ش1", title: "اليوم الثالث - شفت 1", time: "8:00 ص → 11:00 ص", colorClass: "day3-header" },
-        { id: 14, label: "ي3-ش2", title: "اليوم الثالث - شفت 2", time: "11:00 ص → 2:00 م", colorClass: "day3-header" },
-        { id: 15, label: "ي3-ش3", title: "اليوم الثالث - شفت 3", time: "2:00 م → 5:00 م", colorClass: "day3-header" },
-        { id: 16, label: "ي3-ش4", title: "اليوم الثالث - شفت 4", time: "5:00 م → 8:00 م", colorClass: "day3-header" },
-        { id: 17, label: "ي3-ش5", title: "اليوم الثالث - شفت 5", time: "8:00 م → 10:30 م", colorClass: "day3-header" },
-        { id: 18, label: "ي3-ش6", title: "اليوم الثالث - شفت 6", time: "10:30 م → 1:00 ص", colorClass: "day3-header" }
+        // اليوم الثالث
+        { id: 13, label: "ي3-ش1", title: "اليوم الثالث - شفت 1", time: "8:00 ص → 11:00 ص", colorClass: "day3-header", isEvening: false },
+        { id: 14, label: "ي3-ش2", title: "اليوم الثالث - شفت 2", time: "11:00 ص → 2:00 م", colorClass: "day3-header", isEvening: false },
+        { id: 15, label: "ي3-ش3", title: "اليوم الثالث - شفت 3", time: "2:00 م → 5:00 م", colorClass: "day3-header", isEvening: false },
+        { id: 16, label: "ي3-ش4", title: "اليوم الثالث - شفت 4", time: "5:00 م → 8:00 م", colorClass: "day3-header", isEvening: true },
+        { id: 17, label: "ي3-ش5", title: "اليوم الثالث - شفت 5", time: "8:00 م → 10:30 م", colorClass: "day3-header", isEvening: true },
+        { id: 18, label: "ي3-ش6", title: "اليوم الثالث - شفت 6", time: "10:30 م → 1:00 ص", colorClass: "day3-header", isEvening: true }
     ];
 
     let allDelegates = JSON.parse(localStorage.getItem('delegates_eid_v2')) || [];
@@ -239,11 +238,61 @@
         }
     }
 
-    function randomizeShifts() {
-        allDelegates.forEach((d, index) => { d.shiftIds = [(index % 18) + 1]; });
+    // ✨ التوزيع الذكي الجديد (أقصى حد 3-4 شفتات في اليوم) ✨
+    function smartRandomizeShifts() {
+        if (allDelegates.length === 0) {
+            alert("الرجاء إضافة المناديب أولاً!");
+            return;
+        }
+
+        // 1. تصفير المناوبات القديمة
+        allDelegates.forEach(d => d.shiftIds = []);
+
+        // 2. تجميع الشفتات حسب اليوم
+        const daysGroups = [
+            shiftsConfig.filter(s => s.id >= 1 && s.id <= 4),   // اليوم الأول
+            shiftsConfig.filter(s => s.id >= 5 && s.id <= 12),  // اليوم الثاني
+            shiftsConfig.filter(s => s.id >= 13 && s.id <= 18)  // اليوم الثالث
+        ];
+
+        // 3. التوزيع العادل بحيث لا يتجاوز أحد المناديب باقي زملائه في نفس اليوم
+        daysGroups.forEach(dayShifts => {
+            
+            // نصفر عداد "شفتات اليوم" لكل مندوب قبل أن نبدأ توزيع هذا اليوم
+            allDelegates.forEach(d => d.shiftsToday = 0);
+
+            dayShifts.forEach(shift => {
+                // الشفت المسائي يحتاج 5، الصباحي يحتاج 3
+                let neededDelegates = shift.isEvening ? 5 : 3;
+                let assignedCount = 0;
+
+                while(assignedCount < neededDelegates) {
+                    // نأخذ المناديب المتاحين الذين لم يُضافوا في هذا الشفت تحديداً
+                    let availableDelegates = allDelegates.filter(d => !d.shiftIds.includes(shift.id));
+                    
+                    if (availableDelegates.length === 0) break; // أمان في حال لم نجد أحد
+
+                    // ترتيب المناديب: نعطي الأولوية لمن لم يأخذ شفتات كثيرة في *نفس هذا اليوم*
+                    availableDelegates.sort((a, b) => {
+                        if (a.shiftsToday !== b.shiftsToday) {
+                            return a.shiftsToday - b.shiftsToday; // ترتيب تصاعدي حسب عداد اليوم
+                        }
+                        return 0.5 - Math.random(); // إذا تساووا، نختار عشوائياً للعدل
+                    });
+
+                    // اختيار المندوب الأول في القائمة المفلترة والمصنفة
+                    let selectedDelegate = availableDelegates[0];
+                    selectedDelegate.shiftIds.push(shift.id);
+                    selectedDelegate.shiftsToday++;
+                    assignedCount++;
+                }
+            });
+        });
+
         render();
     }
 
+    // ✨ تصدير PDF مرتب بدون انقسام الكلام ✨
     function downloadPDF() {
         const pdfBtn = document.getElementById('pdfBtn');
         const originalText = pdfBtn.innerHTML;
@@ -251,17 +300,17 @@
         pdfBtn.disabled = true;
 
         let printHTML = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; padding: 20px; background: #fff;">
-            <h1 style="text-align: center; color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 30px;">جدول مناوبات مناديب العيد</h1>
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; background: #fff;">
         `;
 
+        // ترتيب كل شفتين في صفحة مستقلة
         for (let i = 0; i < shiftsConfig.length; i += 2) {
             
-            if (i > 0) {
-                printHTML += `<div class="html2pdf__page-break" style="page-break-before: always; height: 0; display: block; width: 100%;"></div>`;
-            }
-            
-            printHTML += `<div style="display: block; width: 100%; clear: both;">`;
+            printHTML += `
+            <div style="padding: 20px; box-sizing: border-box; page-break-after: always;">
+                <h1 style="text-align: center; color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px;">جدول مناوبات مناديب العيد</h1>
+                <div style="display: flex; justify-content: space-between; gap: 2%;">
+            `;
             
             for(let j = 0; j < 2; j++) {
                 if (i + j < shiftsConfig.length) {
@@ -269,7 +318,7 @@
                     const delegatesInShift = allDelegates.filter(d => d.shiftIds.includes(shift.id));
                     
                     let delegatesHTML = delegatesInShift.map(d => `
-                        <div style="background: #f9f9f9; padding: 12px; margin: 8px 0; border-right: 4px solid #8e44ad; border-radius: 4px; border-left: 1px solid #eee; font-weight: bold; color: #333; font-size: 16px;">
+                        <div style="background: #f9f9f9; padding: 10px; margin: 8px 0; border-right: 4px solid #8e44ad; border-radius: 4px; border-left: 1px solid #eee; font-weight: bold; color: #333; font-size: 14px; page-break-inside: avoid;">
                             ${d.name}
                         </div>
                     `).join('');
@@ -278,16 +327,15 @@
                         delegatesHTML = `<div style="text-align:center; color:#999; padding: 20px; font-size: 14px;">لا يوجد مناديب في هذه الفترة</div>`;
                     }
 
-                    // ألوان رؤوس البطاقات في الـ PDF
-                    let bgColor = "#2c3e50"; // افتراضي
+                    let bgColor = "#2c3e50"; 
                     if(shift.id >= 1 && shift.id <= 4) bgColor = "#2980b9";
                     if(shift.id >= 5 && shift.id <= 12) bgColor = "#8e44ad";
                     if(shift.id >= 13 && shift.id <= 18) bgColor = "#16a085";
 
                     printHTML += `
-                    <div style="display: inline-block; width: 48%; vertical-align: top; border: 1px solid #ddd; border-radius: 10px; padding: 15px; box-sizing: border-box; margin: 0 0.5%;">
-                        <div style="font-weight: bold; background: ${bgColor}; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-size: 18px;">
-                            ${shift.title}<br><span style="font-size: 14px;" dir="ltr">${shift.time}</span>
+                    <div style="width: 49%; border: 1px solid #ddd; border-radius: 10px; padding: 15px; box-sizing: border-box; page-break-inside: avoid;">
+                        <div style="font-weight: bold; background: ${bgColor}; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; font-size: 16px;">
+                            ${shift.title}<br><span style="font-size: 13px;" dir="ltr">${shift.time}</span>
                         </div>
                         <div>
                             ${delegatesHTML}
@@ -297,14 +345,14 @@
                 }
             }
             
-            printHTML += `</div>`; 
+            printHTML += `</div></div>`; 
         }
 
         printHTML += `</div>`;
 
         const opt = { 
-            margin: 10, 
-            filename: 'جدول_العيد.pdf', 
+            margin: 5, 
+            filename: 'جدول_مناوبات_العيد.pdf', 
             image: { type: 'jpeg', quality: 1 },
             html2canvas: { scale: 2, useCORS: true }, 
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
