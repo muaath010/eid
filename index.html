@@ -63,6 +63,7 @@
         </div>
         <button class="btn-random" onclick="smartRandomizeShifts()">🤖 توزيع ذكي (يمنع الشفتات المتتالية)</button>
         <button id="pdfBtn" class="btn-pdf" onclick="downloadPDF()">📄 تصدير الجدول PDF</button>
+        <button id="syncBtn" style="background: #3498db; color: white; grid-column: span 2;" onclick="syncWithDatabase()">☁️ رفع الجدول إلى قاعدة البيانات (الواتساب التلقائي)</button>
     </div>
 
     <div class="shifts-grid" id="shiftsContainer"></div>
@@ -94,7 +95,6 @@
         { id: 17, label: "ي3-ش5", title: "اليوم الثالث - شفت 5", time: "8:00 م → 10:30 م", colorClass: "day3-header", isEvening: true },
         { id: 18, label: "ي3-ش6", title: "اليوم الثالث - شفت 6", time: "10:30 م → 1:00 ص", colorClass: "day3-header", isEvening: true }
     ];
-
     let allDelegates = JSON.parse(localStorage.getItem('delegates_eid_v2')) || [];
 
     function render() {
@@ -195,24 +195,21 @@
 
     function sendWhatsApp(delegateId) {
         const delegate = allDelegates.find(d => d.id === delegateId);
-        
         if (!delegate.phone) {
             alert("يرجى إضافة رقم جوال لهذا المندوب أولاً");
             return;
         }
 
         let message = "";
-        
         if (delegate.shiftIds && delegate.shiftIds.length > 0) {
             const sortedShifts = [...delegate.shiftIds].sort((a, b) => a - b);
             let shiftsText = sortedShifts.map(id => {
                 const shift = shiftsConfig.find(s => s.id === id);
                 return `▪️ ${shift.title}: من ${shift.time}`;
             }).join('\n');
-            
             message = `أهلاً ${delegate.name} 🎉\nكل عام وأنتم بخير.. لديك مناوبات في أيام العيد للفترات التالية:\n\n${shiftsText}\n\nبالتوفيق!`;
         } else {
-            message = `أهلاً ${delegate.name} 🎉\nكل عام وأنتم بخير.. أنت حالياً في قائمة الانتظار (بدون فترة محددة). سنقوم بالتواصل معك قريباً لتحديد موعد مناوبتك!`;
+            message = `أهلاً ${delegate.name} 🎉\nكل عام وأنتم بخير.. أنت حالياً في قائمة الانتظار (بدون فترة محددة).\nسنقوم بالتواصل معك قريباً لتحديد موعد مناوبتك!`;
         }
         
         const url = `https://wa.me/${delegate.phone}?text=${encodeURIComponent(message)}`;
@@ -250,7 +247,7 @@
             d.shiftIds = [];
             d.shiftsToday = 0;
         });
-
+        
         // 2. تقسيم الشفتات حسب اليوم
         const daysGroups = [
             shiftsConfig.filter(s => s.id >= 1 && s.id <= 4),   // اليوم الأول
@@ -280,12 +277,11 @@
 
                     // ترتيب المناديب حسب الأولوية الصارمة
                     availableDelegates.sort((a, b) => {
-                        // أولوية 1: تجنب الشفت المتتالي (الشخص الذي عمل الشفت السابق يُعطى قيمة 1 فيرجع لآخر الطابور)
+                        // أولوية 1: تجنب الشفت المتتالي
                         let aWorkedPrev = (prevShiftId && a.shiftIds.includes(prevShiftId)) ? 1 : 0;
                         let bWorkedPrev = (prevShiftId && b.shiftIds.includes(prevShiftId)) ? 1 : 0;
-                        
                         if (aWorkedPrev !== bWorkedPrev) {
-                            return aWorkedPrev - bWorkedPrev; 
+                            return aWorkedPrev - bWorkedPrev;
                         }
 
                         // أولوية 2: المساواة في عدد الشفتات في نفس اليوم
@@ -327,7 +323,7 @@
                 <h1 style="text-align: center; color: #8e44ad; border-bottom: 2px solid #8e44ad; padding-bottom: 10px; margin-bottom: 20px; font-size: 24px;">جدول مناوبات مناديب العيد</h1>
                 <div style="display: flex; justify-content: space-between; gap: 2%;">
             `;
-            
+
             for(let j = 0; j < 2; j++) {
                 if (i + j < shiftsConfig.length) {
                     const shift = shiftsConfig[i + j];
@@ -338,12 +334,12 @@
                             ${d.name}
                         </div>
                     `).join('');
-
+                    
                     if(delegatesInShift.length === 0) {
                         delegatesHTML = `<div style="text-align:center; color:#999; padding: 20px; font-size: 14px;">لا يوجد مناديب في هذه الفترة</div>`;
                     }
 
-                    let bgColor = "#2c3e50"; 
+                    let bgColor = "#2c3e50";
                     if(shift.id >= 1 && shift.id <= 4) bgColor = "#2980b9";
                     if(shift.id >= 5 && shift.id <= 12) bgColor = "#8e44ad";
                     if(shift.id >= 13 && shift.id <= 18) bgColor = "#16a085";
@@ -361,7 +357,7 @@
                 }
             }
             
-            printHTML += `</div></div>`; 
+            printHTML += `</div></div>`;
         }
 
         printHTML += `</div>`;
@@ -387,6 +383,95 @@
     }
 
     render();
+
+    // ==========================================
+    // دالة الربط مع قاعدة البيانات (تلقائي)
+    // ==========================================
+    
+    // 1. دالة لحساب وقت التنبيه (نصف ساعة قبل الشفت) وتحويله إلى نظام 24 ساعة
+    function calculateNotifyTime(timeStr) {
+        try {
+            // فصل وقت البداية، مثال: "4:00 م" من "4:00 م → 6:15 م"
+            let startPart = timeStr.split('→')[0].trim();
+            let [time, ampm] = startPart.split(' ');
+            let [hours, minutes] = time.split(':').map(Number);
+
+            if (ampm === 'م' && hours !== 12) hours += 12;
+            if (ampm === 'ص' && hours === 12) hours = 0;
+
+            // طرح 30 دقيقة
+            let totalMinutes = (hours * 60) + minutes - 30;
+            if (totalMinutes < 0) totalMinutes += 24 * 60; // للأوقات بعد منتصف الليل
+
+            let notifyHour = Math.floor(totalMinutes / 60);
+            let notifyMin = totalMinutes % 60;
+
+            return `${notifyHour.toString().padStart(2, '0')}:${notifyMin.toString().padStart(2, '0')}`;
+        } catch (e) {
+            console.error("خطأ في حساب الوقت:", e);
+            return "00:00";
+        }
+    }
+
+    // 2. الدالة الرئيسية لرفع البيانات إلى Google Sheets
+    async function syncWithDatabase() {
+        // ⚠️ هام: استبدل الرابط أدناه بالرابط الذي نسخته من Google Apps Script
+        const scriptURL = 'ضع_رابط_الـ_Web_App_هنا'; 
+        
+        let payload = [];
+
+        // تجميع بيانات المناديب الذين لديهم شفتات
+        allDelegates.forEach(delegate => {
+            if (delegate.shiftIds && delegate.shiftIds.length > 0) {
+                delegate.shiftIds.forEach(shiftId => {
+                    const shift = shiftsConfig.find(s => s.id === shiftId);
+                    if (shift) {
+                        payload.push({
+                            name: delegate.name,
+                            phone: delegate.phone,
+                            shiftId: shift.title,
+                            shiftTime: shift.time,
+                            notifyTime: calculateNotifyTime(shift.time)
+                        });
+                    }
+                });
+            }
+        });
+
+        if (payload.length === 0) {
+            alert('لا يوجد مناوبات مسجلة لرفعها. قم بتوزيع الشفتات أولاً.');
+            return;
+        }
+
+        const btn = document.getElementById('syncBtn');
+        if(btn) { 
+            btn.innerHTML = '⏳ جاري رفع الجدول إلى النظام...'; 
+            btn.disabled = true; 
+        }
+
+        try {
+            const response = await fetch(scriptURL, {
+                method: 'POST',
+                // إرسال البيانات كنص صريح لتجنب مشاكل الـ CORS مع جوجل
+                body: JSON.stringify(payload),
+                headers: {
+                    "Content-Type": "text/plain;charset=utf-8",
+                }
+            });
+            const result = await response.json();
+            if(result.status === 'success') {
+                alert('تم مزامنة الجدول مع قاعدة البيانات بنجاح! ✅\nسيبدأ النظام الآن بإرسال تنبيهات الواتساب التلقائية في أوقاتها.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('تم إرسال الطلب. يرجى مراجعة ملف Google Sheets للتأكد من وصول البيانات.');
+        } finally {
+            if(btn) { 
+                btn.innerHTML = '☁️ رفع الجدول إلى قاعدة البيانات (الواتساب التلقائي)'; 
+                btn.disabled = false; 
+            }
+        }
+    }
 </script>
 </body>
 </html>
